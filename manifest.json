@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Firefox DL Path Manager",
+  "version": "0.1.0",
+  "description": "Recent Firefox downloads list with quick path, URL, and table copy actions.",
+  "permissions": [
+    "downloads",
+    "clipboardWrite"
+  ],
+  "action": {
+    "default_title": "DL Path Manager",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon.svg",
+      "32": "icons/icon.svg",
+      "48": "icons/icon.svg",
+      "96": "icons/icon.svg"
+    }
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "firefox-dl-path-manager@example.local",
+      "strict_min_version": "109.0"
+    }
+  }
+}
