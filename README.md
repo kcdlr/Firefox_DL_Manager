@@ -1,4 +1,4 @@
-# Firefox DL Path Manager
+# DL Path Manager
 
 Firefox のダウンロード履歴を一覧表示し、保存先パスやURLを素早くコピーするためのFirefox限定WebExtensionです。
 
@@ -18,6 +18,22 @@ Firefox のダウンロード履歴を一覧表示し、保存先パスやURLを
 2. `一時的なアドオンを読み込む...` を押す
 3. このフォルダの `manifest.json` を選択する
 4. ツールバーの `DL Path Manager` ボタンを開く
+
+## AMOアップロード用ZIP
+
+ZIPを作成するときは、リポジトリの中身ではなく拡張機能に必要なファイルだけを含めます。`manifest.json` がZIPのルート直下にあり、`icons/` ディレクトリの階層が保たれている必要があります。
+
+含めるファイル:
+
+- `manifest.json`
+- `popup.html`
+- `popup.css`
+- `popup.js`
+- `README.md`
+- `icons/icon-16.png`
+- `icons/icon-32.png`
+- `icons/icon-48.png`
+- `icons/icon-96.png`
 
 ## 注意
 
