@@ -70,16 +70,10 @@ button:active {
   transform: translateY(1px);
 }
 
-button.primary,
-.controls button {
+button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-}
-
-.controls button:hover {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
 }
 
 button:disabled {
@@ -107,6 +101,11 @@ h1 {
   color: var(--muted);
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .icon-button {
   width: 34px;
   padding: 0;
@@ -114,15 +113,15 @@ h1 {
   line-height: 1;
 }
 
-.controls,
 .filters {
   display: grid;
   gap: 8px;
   margin-bottom: 10px;
 }
 
-.controls {
-  grid-template-columns: repeat(4, 1fr);
+.close-button {
+  font-size: 19px;
+  font-weight: 650;
 }
 
 .filters {
@@ -166,7 +165,7 @@ input {
 .download-list {
   display: grid;
   gap: 8px;
-  max-height: 416px;
+  max-height: 456px;
   overflow: auto;
   padding-right: 4px;
 }

@@ -12,17 +12,15 @@
         <h1>Downloads</h1>
         <p id="summary">読み込み中</p>
       </div>
-      <button id="refreshButton" class="icon-button" type="button" title="更新" aria-label="更新">
-        <span aria-hidden="true">↻</span>
-      </button>
+      <div class="topbar-actions">
+        <button id="refreshButton" class="icon-button" type="button" title="更新" aria-label="更新">
+          <span aria-hidden="true">↻</span>
+        </button>
+        <button id="closeButton" class="icon-button close-button" type="button" title="閉じる" aria-label="閉じる">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
     </header>
-
-    <section class="controls" aria-label="コピー操作">
-      <button id="copyLatestPathButton" type="button">最新パス</button>
-      <button id="copyAllPathsButton" type="button">全パス</button>
-      <button id="copyTsvButton" type="button">TSV</button>
-      <button id="copyJsonButton" type="button">JSON</button>
-    </section>
 
     <section class="filters" aria-label="表示設定">
       <label>

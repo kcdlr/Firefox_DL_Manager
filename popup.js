@@ -10,10 +10,7 @@ const state = {
 const elements = {
   summary: document.getElementById("summary"),
   refreshButton: document.getElementById("refreshButton"),
-  copyLatestPathButton: document.getElementById("copyLatestPathButton"),
-  copyAllPathsButton: document.getElementById("copyAllPathsButton"),
-  copyTsvButton: document.getElementById("copyTsvButton"),
-  copyJsonButton: document.getElementById("copyJsonButton"),
+  closeButton: document.getElementById("closeButton"),
   limitSelect: document.getElementById("limitSelect"),
   stateSelect: document.getElementById("stateSelect"),
   searchInput: document.getElementById("searchInput"),
@@ -152,40 +149,6 @@ function updateSummary() {
   elements.summary.textContent = `${visible} / ${total} 件を表示`;
 }
 
-function setCopyButtonsEnabled(enabled) {
-  elements.copyLatestPathButton.disabled = !enabled;
-  elements.copyAllPathsButton.disabled = !enabled;
-  elements.copyTsvButton.disabled = !enabled;
-  elements.copyJsonButton.disabled = !enabled;
-}
-
-function rowToTsv(item) {
-  return [
-    item.id,
-    item.state || "",
-    item.startTime || "",
-    item.filename || "",
-    item.url || "",
-    item.finalUrl || ""
-  ].map((value) => String(value).replaceAll("\t", " ").replaceAll("\n", " ")).join("\t");
-}
-
-function rowToObject(item) {
-  return {
-    id: item.id,
-    state: item.state,
-    startTime: item.startTime,
-    endTime: item.endTime,
-    filename: item.filename,
-    url: item.url,
-    finalUrl: item.finalUrl,
-    exists: item.exists,
-    fileSize: item.fileSize,
-    totalBytes: item.totalBytes,
-    mime: item.mime
-  };
-}
-
 async function copyText(text, successMessage) {
   if (!text) {
     setStatus("コピーできる内容がありません。", "error");
@@ -204,7 +167,6 @@ async function copyText(text, successMessage) {
 function renderDownloads() {
   updateVisibleDownloads();
   updateSummary();
-  setCopyButtonsEnabled(state.visibleDownloads.length > 0);
   elements.downloadList.textContent = "";
 
   if (state.visibleDownloads.length === 0) {
@@ -286,7 +248,6 @@ function renderDownloads() {
 
 async function loadDownloads() {
   setStatus("読み込み中...");
-  setCopyButtonsEnabled(false);
 
   const limit = Number.parseInt(elements.limitSelect.value, 10);
   const query = {
@@ -307,42 +268,11 @@ async function loadDownloads() {
 }
 
 function bindEvents() {
-  document.addEventListener("keydown", (event) => {
-    if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "w") {
-      event.preventDefault();
-      event.stopPropagation();
-      window.close();
-    }
-  }, true);
-
   elements.refreshButton.addEventListener("click", loadDownloads);
+  elements.closeButton.addEventListener("click", () => window.close());
   elements.limitSelect.addEventListener("change", loadDownloads);
   elements.stateSelect.addEventListener("change", renderDownloads);
   elements.searchInput.addEventListener("input", renderDownloads);
-
-  elements.copyLatestPathButton.addEventListener("click", () => {
-    const latest = state.visibleDownloads.find((item) => item.filename);
-    copyText(latest && latest.filename, "最新のパスをコピーしました。");
-  });
-
-  elements.copyAllPathsButton.addEventListener("click", () => {
-    const paths = state.visibleDownloads
-      .map((item) => item.filename)
-      .filter(Boolean)
-      .join("\n");
-    copyText(paths, "表示中のパスをコピーしました。");
-  });
-
-  elements.copyTsvButton.addEventListener("click", () => {
-    const header = "id\tstate\tstartTime\tfilename\turl\tfinalUrl";
-    const rows = state.visibleDownloads.map(rowToTsv);
-    copyText([header, ...rows].join("\n"), "表示中の一覧をTSVでコピーしました。");
-  });
-
-  elements.copyJsonButton.addEventListener("click", () => {
-    const json = JSON.stringify(state.visibleDownloads.map(rowToObject), null, 2);
-    copyText(json, "表示中の一覧をJSONでコピーしました。");
-  });
 }
 
 bindEvents();
