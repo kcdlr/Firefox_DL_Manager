@@ -4,8 +4,12 @@ const api = globalThis.browser || globalThis.chrome;
 
 const state = {
   downloads: [],
-  visibleDownloads: []
+  visibleDownloads: [],
+  progressTimer: null,
+  isRefreshing: false
 };
+
+const PROGRESS_POLL_INTERVAL_MS = 1000;
 
 const elements = {
   summary: document.getElementById("summary"),
@@ -73,6 +77,32 @@ function formatBytes(bytes) {
 
   const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
   return `${size.toFixed(precision)} ${units[unitIndex]}`;
+}
+
+function positiveBytes(value) {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function totalBytesFor(item) {
+  return positiveBytes(item.totalBytes) || positiveBytes(item.fileSize);
+}
+
+function progressFor(item) {
+  const totalBytes = totalBytesFor(item);
+  const receivedBytes = item.state === "complete"
+    ? totalBytes
+    : positiveBytes(item.bytesReceived);
+  const hasTotal = totalBytes > 0;
+  const percent = hasTotal
+    ? Math.min(100, Math.max(0, Math.round((receivedBytes / totalBytes) * 100)))
+    : null;
+
+  return {
+    hasTotal,
+    percent,
+    receivedText: formatBytes(receivedBytes),
+    totalText: formatBytes(totalBytes)
+  };
 }
 
 function formatDate(value) {
@@ -149,6 +179,81 @@ function updateSummary() {
   elements.summary.textContent = `${visible} / ${total} 件を表示`;
 }
 
+function hasActiveDownloads() {
+  return state.downloads.some((item) => item.state === "in_progress");
+}
+
+function updateProgressPolling() {
+  if (hasActiveDownloads()) {
+    if (!state.progressTimer) {
+      state.progressTimer = window.setInterval(() => {
+        loadDownloads({ silent: true });
+      }, PROGRESS_POLL_INTERVAL_MS);
+    }
+    return;
+  }
+
+  if (state.progressTimer) {
+    window.clearInterval(state.progressTimer);
+    state.progressTimer = null;
+  }
+}
+
+function renderProgress(container, item) {
+  const fill = container.querySelector(".progress-fill");
+  const text = container.querySelector(".progress-text");
+  const shouldShow = item.state === "in_progress" || item.state === "complete" || item.state === "interrupted";
+
+  container.className = "download-progress";
+  container.removeAttribute("aria-hidden");
+  container.setAttribute("role", "progressbar");
+  container.setAttribute("aria-label", `${baseName(item.filename)} のダウンロード進捗`);
+  container.setAttribute("aria-valuemin", "0");
+  container.setAttribute("aria-valuemax", "100");
+
+  if (!shouldShow) {
+    container.classList.add("hidden");
+    container.setAttribute("aria-hidden", "true");
+    container.removeAttribute("role");
+    container.removeAttribute("aria-valuenow");
+    container.removeAttribute("aria-valuemin");
+    container.removeAttribute("aria-valuemax");
+    fill.style.width = "0%";
+    text.textContent = "";
+    return;
+  }
+
+  const progress = progressFor(item);
+  container.classList.add(item.state || "");
+
+  if (progress.hasTotal) {
+    fill.style.width = `${progress.percent}%`;
+    container.setAttribute("aria-valuenow", String(progress.percent));
+    text.textContent = progress.receivedText && progress.totalText
+      ? `${progress.percent}% ・ ${progress.receivedText} / ${progress.totalText}`
+      : `${progress.percent}%`;
+    return;
+  }
+
+  container.removeAttribute("aria-valuenow");
+
+  if (item.state === "in_progress") {
+    fill.style.width = "";
+    container.classList.add("indeterminate");
+    text.textContent = progress.receivedText ? `${progress.receivedText} 受信済み` : "進行中";
+    return;
+  }
+
+  fill.style.width = item.state === "complete" ? "100%" : "0%";
+  if (item.state === "complete") {
+    container.setAttribute("aria-valuenow", "100");
+    text.textContent = progress.totalText ? `100% ・ ${progress.totalText}` : "100%";
+    return;
+  }
+
+  text.textContent = stateLabel(item.state);
+}
+
 async function copyText(text, successMessage) {
   if (!text) {
     setStatus("コピーできる内容がありません。", "error");
@@ -186,6 +291,7 @@ function renderDownloads() {
     const title = row.querySelector(".download-title");
     const badge = row.querySelector(".download-state");
     const meta = row.querySelector(".download-meta");
+    const progress = row.querySelector(".download-progress");
     const path = row.querySelector(".download-path");
     const url = row.querySelector(".download-url");
     const copyPath = row.querySelector(".copy-path");
@@ -202,6 +308,7 @@ function renderDownloads() {
     badge.textContent = stateLabel(item.state);
     badge.classList.add(item.state || "");
     meta.textContent = metaParts.join(" ・ ");
+    renderProgress(progress, item);
     path.textContent = item.filename || "(保存先パスなし)";
     path.title = item.filename || "";
     url.textContent = item.finalUrl || item.url || "";
@@ -246,8 +353,18 @@ function renderDownloads() {
   elements.downloadList.append(fragment);
 }
 
-async function loadDownloads() {
-  setStatus("読み込み中...");
+async function loadDownloads(options = {}) {
+  const { silent = false } = options;
+
+  if (state.isRefreshing) {
+    return;
+  }
+
+  state.isRefreshing = true;
+
+  if (!silent) {
+    setStatus("読み込み中...");
+  }
 
   const limit = Number.parseInt(elements.limitSelect.value, 10);
   const query = {
@@ -258,12 +375,19 @@ async function loadDownloads() {
   try {
     state.downloads = await downloadsSearch(query);
     renderDownloads();
-    setStatus("読み込みました。", "success");
+    updateProgressPolling();
+    if (!silent) {
+      setStatus("読み込みました。", "success");
+    }
   } catch (error) {
     console.error(error);
-    state.downloads = [];
-    renderDownloads();
-    setStatus(`読み込みに失敗しました: ${error.message}`, "error");
+    if (!silent) {
+      state.downloads = [];
+      renderDownloads();
+      setStatus(`読み込みに失敗しました: ${error.message}`, "error");
+    }
+  } finally {
+    state.isRefreshing = false;
   }
 }
 
@@ -277,3 +401,9 @@ function bindEvents() {
 
 bindEvents();
 loadDownloads();
+
+window.addEventListener("unload", () => {
+  if (state.progressTimer) {
+    window.clearInterval(state.progressTimer);
+  }
+});

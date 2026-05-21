@@ -10,6 +10,7 @@
   --success: #117447;
   --warning: #9a5a00;
   --danger: #b42318;
+  --progress-bg: #e8edf5;
   --shadow: 0 8px 24px rgba(28, 35, 45, 0.12);
 }
 
@@ -22,6 +23,7 @@
     --line: #383f49;
     --accent: #7aa2ff;
     --accent-strong: #a8c1ff;
+    --progress-bg: #303743;
     --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
 }
@@ -234,6 +236,64 @@ input {
 
 .download-state.in_progress {
   color: var(--warning);
+}
+
+.download-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 156px;
+  gap: 8px;
+  align-items: center;
+  margin-top: 7px;
+}
+
+.download-progress.hidden {
+  display: none;
+}
+
+.progress-track {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--progress-bg);
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 180ms ease;
+}
+
+.download-progress.indeterminate .progress-fill {
+  width: 38%;
+  animation: progress-slide 1.1s ease-in-out infinite;
+}
+
+.download-progress.interrupted .progress-fill {
+  background: var(--danger);
+}
+
+.download-progress.complete .progress-fill {
+  background: var(--success);
+}
+
+.progress-text {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(270%);
+  }
 }
 
 .download-meta,
