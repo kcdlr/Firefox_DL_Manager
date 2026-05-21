@@ -13,6 +13,7 @@ const PROGRESS_POLL_INTERVAL_MS = 1000;
 
 const elements = {
   summary: document.getElementById("summary"),
+  versionInfo: document.getElementById("versionInfo"),
   refreshButton: document.getElementById("refreshButton"),
   closeButton: document.getElementById("closeButton"),
   limitSelect: document.getElementById("limitSelect"),
@@ -56,9 +57,41 @@ function downloadsOpen(downloadId) {
   });
 }
 
+function downloadsCancel(downloadId) {
+  return new Promise((resolve, reject) => {
+    const result = api.downloads.cancel(downloadId);
+    if (result && typeof result.then === "function") {
+      result.then(resolve, reject);
+      return;
+    }
+    resolve(result);
+  });
+}
+
+function downloadsRemoveFile(downloadId) {
+  return new Promise((resolve, reject) => {
+    const result = api.downloads.removeFile(downloadId);
+    if (result && typeof result.then === "function") {
+      result.then(resolve, reject);
+      return;
+    }
+    resolve(result);
+  });
+}
+
 function setStatus(message, kind = "") {
   elements.status.textContent = message;
   elements.status.className = `status ${kind}`.trim();
+}
+
+function renderVersionInfo() {
+  if (!api.runtime || typeof api.runtime.getManifest !== "function") {
+    elements.versionInfo.textContent = "";
+    return;
+  }
+
+  const manifest = api.runtime.getManifest();
+  elements.versionInfo.textContent = manifest.version ? `v${manifest.version}` : "";
 }
 
 function formatBytes(bytes) {
@@ -179,6 +212,10 @@ function updateSummary() {
   elements.summary.textContent = `${visible} / ${total} 件を表示`;
 }
 
+function canUseCompletedFile(item) {
+  return item.state === "complete" && Boolean(item.filename) && item.exists !== false;
+}
+
 function hasActiveDownloads() {
   return state.downloads.some((item) => item.state === "in_progress");
 }
@@ -254,6 +291,175 @@ function renderProgress(container, item) {
   text.textContent = stateLabel(item.state);
 }
 
+function itemForContextEvent(event) {
+  const eventTarget = event.target;
+  const targetElement = eventTarget.nodeType === Node.ELEMENT_NODE
+    ? eventTarget
+    : eventTarget.parentElement;
+  const row = targetElement ? targetElement.closest(".download-row") : null;
+  if (!row || !elements.downloadList.contains(row)) {
+    return null;
+  }
+
+  const downloadId = Number.parseInt(row.dataset.downloadId, 10);
+  if (!Number.isFinite(downloadId)) {
+    return null;
+  }
+
+  return state.downloads.find((item) => item.id === downloadId) || null;
+}
+
+function removeCustomContextMenu() {
+  document.getElementById("customContextMenu")?.remove();
+}
+
+function menuAction(label, options) {
+  return {
+    label,
+    disabled: Boolean(options.disabled),
+    danger: Boolean(options.danger),
+    handler: options.handler
+  };
+}
+
+function createCustomContextMenuButton(action) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = action.label;
+  button.disabled = action.disabled;
+  button.setAttribute("role", "menuitem");
+
+  if (action.danger) {
+    button.classList.add("danger");
+  }
+
+  button.addEventListener("click", async () => {
+    removeCustomContextMenu();
+
+    try {
+      await action.handler();
+    } catch (error) {
+      console.error(error);
+      setStatus(`操作に失敗しました: ${error.message}`, "error");
+    }
+  });
+
+  return button;
+}
+
+function positionCustomContextMenu(menu, event) {
+  const viewportPadding = 8;
+  const menuRect = menu.getBoundingClientRect();
+  const maxLeft = window.innerWidth - menuRect.width - viewportPadding;
+  const maxTop = window.innerHeight - menuRect.height - viewportPadding;
+  const left = Math.min(event.clientX, maxLeft);
+  const top = Math.min(event.clientY, maxTop);
+
+  menu.style.left = `${Math.max(viewportPadding, left)}px`;
+  menu.style.top = `${Math.max(viewportPadding, top)}px`;
+}
+
+function showCustomContextMenu(event, item) {
+  removeCustomContextMenu();
+
+  const fileAvailable = canUseCompletedFile(item);
+  const menu = document.createElement("div");
+  menu.id = "customContextMenu";
+  menu.className = "custom-context-menu";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", `${baseName(item.filename)} の操作`);
+
+  const actions = [
+    menuAction("パスをコピー", {
+      disabled: !item.filename,
+      handler: () => copyText(item.filename, "パスをコピーしました。")
+    }),
+    menuAction("実行", {
+      disabled: !fileAvailable,
+      handler: () => openDownloadedFile(item)
+    }),
+    menuAction("削除", {
+      disabled: !fileAvailable,
+      danger: true,
+      handler: () => deleteDownloadedFile(item)
+    })
+  ];
+
+  for (const action of actions) {
+    menu.append(createCustomContextMenuButton(action));
+  }
+
+  document.body.append(menu);
+  positionCustomContextMenu(menu, event);
+}
+
+function handleCustomContextMenu(event) {
+  const item = itemForContextEvent(event);
+
+  if (!item) {
+    removeCustomContextMenu();
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  showCustomContextMenu(event, item);
+}
+
+function closeCustomContextMenuOnDocumentClick(event) {
+  const menu = document.getElementById("customContextMenu");
+
+  if (!menu || menu.contains(event.target)) {
+    return;
+  }
+
+  removeCustomContextMenu();
+}
+
+function closeCustomContextMenuOnEscape(event) {
+  if (event.key === "Escape") {
+    removeCustomContextMenu();
+  }
+}
+
+async function openDownloadedFile(item) {
+  if (!canUseCompletedFile(item)) {
+    setStatus("実行できるファイルがありません。", "error");
+    return;
+  }
+
+  try {
+    await downloadsOpen(item.id);
+    setStatus("ファイルを実行しました。", "success");
+  } catch (error) {
+    console.error(error);
+    setStatus(`実行できませんでした: ${error.message}`, "error");
+  }
+}
+
+async function deleteDownloadedFile(item) {
+  if (!canUseCompletedFile(item)) {
+    setStatus("削除できるファイルがありません。", "error");
+    await loadDownloads({ silent: true });
+    return;
+  }
+
+  const fileName = baseName(item.filename);
+  if (!window.confirm(`${fileName} を削除しますか？`)) {
+    return;
+  }
+
+  try {
+    await downloadsRemoveFile(item.id);
+    setStatus("ファイルを削除しました。", "success");
+    await loadDownloads({ silent: true });
+  } catch (error) {
+    console.error(error);
+    setStatus(`削除できませんでした: ${error.message}`, "error");
+    await loadDownloads({ silent: true });
+  }
+}
+
 async function copyText(text, successMessage) {
   if (!text) {
     setStatus("コピーできる内容がありません。", "error");
@@ -270,6 +476,7 @@ async function copyText(text, successMessage) {
 }
 
 function renderDownloads() {
+  removeCustomContextMenu();
   updateVisibleDownloads();
   updateSummary();
   elements.downloadList.textContent = "";
@@ -288,8 +495,10 @@ function renderDownloads() {
 
   for (const item of state.visibleDownloads) {
     const row = elements.rowTemplate.content.firstElementChild.cloneNode(true);
+    row.dataset.downloadId = String(item.id);
     const title = row.querySelector(".download-title");
     const badge = row.querySelector(".download-state");
+    const cancelDownload = row.querySelector(".cancel-download");
     const meta = row.querySelector(".download-meta");
     const progress = row.querySelector(".download-progress");
     const path = row.querySelector(".download-path");
@@ -316,8 +525,10 @@ function renderDownloads() {
 
     copyPath.disabled = !item.filename;
     copyUrl.disabled = !(item.finalUrl || item.url);
-    showFolder.disabled = item.state !== "complete" || !item.filename;
-    openFile.disabled = item.state !== "complete" || !item.filename;
+    showFolder.disabled = !canUseCompletedFile(item);
+    openFile.disabled = !canUseCompletedFile(item);
+    cancelDownload.hidden = item.state !== "in_progress";
+    cancelDownload.disabled = item.state !== "in_progress";
 
     copyPath.addEventListener("click", () => {
       copyText(item.filename, "パスをコピーしました。");
@@ -325,6 +536,23 @@ function renderDownloads() {
 
     copyUrl.addEventListener("click", () => {
       copyText(item.finalUrl || item.url, "URLをコピーしました。");
+    });
+
+    cancelDownload.addEventListener("click", async () => {
+      cancelDownload.disabled = true;
+      cancelDownload.textContent = "取消中";
+
+      try {
+        await downloadsCancel(item.id);
+        setStatus("ダウンロードをキャンセルしました。", "success");
+        await loadDownloads({ silent: true });
+      } catch (error) {
+        console.error(error);
+        setStatus(`キャンセルできませんでした: ${error.message}`, "error");
+        cancelDownload.disabled = false;
+        cancelDownload.textContent = "キャンセル";
+        await loadDownloads({ silent: true });
+      }
     });
 
     showFolder.addEventListener("click", async () => {
@@ -338,13 +566,7 @@ function renderDownloads() {
     });
 
     openFile.addEventListener("click", async () => {
-      try {
-        await downloadsOpen(item.id);
-        setStatus("ファイルを実行しました。", "success");
-      } catch (error) {
-        console.error(error);
-        setStatus(`実行できませんでした: ${error.message}`, "error");
-      }
+      await openDownloadedFile(item);
     });
 
     fragment.append(row);
@@ -397,9 +619,15 @@ function bindEvents() {
   elements.limitSelect.addEventListener("change", loadDownloads);
   elements.stateSelect.addEventListener("change", renderDownloads);
   elements.searchInput.addEventListener("input", renderDownloads);
+  elements.downloadList.addEventListener("contextmenu", handleCustomContextMenu);
+  document.addEventListener("click", closeCustomContextMenuOnDocumentClick);
+  document.addEventListener("keydown", closeCustomContextMenuOnEscape);
+  window.addEventListener("blur", removeCustomContextMenu);
+  elements.downloadList.addEventListener("scroll", removeCustomContextMenu);
 }
 
 bindEvents();
+renderVersionInfo();
 loadDownloads();
 
 window.addEventListener("unload", () => {

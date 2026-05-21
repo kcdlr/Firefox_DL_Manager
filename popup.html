@@ -10,7 +10,10 @@
     <header class="topbar">
       <div>
         <h1>Downloads</h1>
-        <p id="summary">読み込み中</p>
+        <p class="topbar-meta">
+          <span id="summary">読み込み中</span>
+          <span id="versionInfo" class="version-info"></span>
+        </p>
       </div>
       <div class="topbar-actions">
         <button id="refreshButton" class="icon-button" type="button" title="更新" aria-label="更新">
@@ -55,6 +58,7 @@
           <div class="download-title-row">
             <h2 class="download-title"></h2>
             <span class="download-state"></span>
+            <button class="cancel-download" type="button">キャンセル</button>
           </div>
           <div class="download-meta"></div>
           <div class="download-progress">
