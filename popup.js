@@ -44,6 +44,17 @@ function downloadsShow(downloadId) {
   });
 }
 
+function downloadsOpen(downloadId) {
+  return new Promise((resolve, reject) => {
+    const result = api.downloads.open(downloadId);
+    if (result && typeof result.then === "function") {
+      result.then(resolve, reject);
+      return;
+    }
+    resolve(result);
+  });
+}
+
 function setStatus(message, kind = "") {
   elements.status.textContent = message;
   elements.status.className = `status ${kind}`.trim();
@@ -217,8 +228,8 @@ function renderDownloads() {
     const url = row.querySelector(".download-url");
     const copyPath = row.querySelector(".copy-path");
     const copyUrl = row.querySelector(".copy-url");
-    const copyRow = row.querySelector(".copy-row");
-    const showFile = row.querySelector(".show-file");
+    const showFolder = row.querySelector(".show-folder");
+    const openFile = row.querySelector(".open-file");
 
     const sizeText = formatBytes(item.fileSize || item.totalBytes);
     const timeText = formatDate(item.startTime);
@@ -236,7 +247,8 @@ function renderDownloads() {
 
     copyPath.disabled = !item.filename;
     copyUrl.disabled = !(item.finalUrl || item.url);
-    showFile.disabled = item.state !== "complete" || !item.filename;
+    showFolder.disabled = item.state !== "complete" || !item.filename;
+    openFile.disabled = item.state !== "complete" || !item.filename;
 
     copyPath.addEventListener("click", () => {
       copyText(item.filename, "パスをコピーしました。");
@@ -246,17 +258,23 @@ function renderDownloads() {
       copyText(item.finalUrl || item.url, "URLをコピーしました。");
     });
 
-    copyRow.addEventListener("click", () => {
-      copyText(rowToTsv(item), "行をTSVでコピーしました。");
-    });
-
-    showFile.addEventListener("click", async () => {
+    showFolder.addEventListener("click", async () => {
       try {
         await downloadsShow(item.id);
-        setStatus("ファイルの場所を開きました。", "success");
+        setStatus("ファイルの階層を開きました。", "success");
       } catch (error) {
         console.error(error);
         setStatus(`開けませんでした: ${error.message}`, "error");
+      }
+    });
+
+    openFile.addEventListener("click", async () => {
+      try {
+        await downloadsOpen(item.id);
+        setStatus("ファイルを実行しました。", "success");
+      } catch (error) {
+        console.error(error);
+        setStatus(`実行できませんでした: ${error.message}`, "error");
       }
     });
 
@@ -289,6 +307,14 @@ async function loadDownloads() {
 }
 
 function bindEvents() {
+  document.addEventListener("keydown", (event) => {
+    if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "w") {
+      event.preventDefault();
+      event.stopPropagation();
+      window.close();
+    }
+  }, true);
+
   elements.refreshButton.addEventListener("click", loadDownloads);
   elements.limitSelect.addEventListener("change", loadDownloads);
   elements.stateSelect.addEventListener("change", renderDownloads);

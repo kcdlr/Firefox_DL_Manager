@@ -5,6 +5,7 @@
   "description": "Recent Firefox downloads list with quick path, URL, and table copy actions.",
   "permissions": [
     "downloads",
+    "downloads.open",
     "clipboardWrite"
   ],
   "action": {
